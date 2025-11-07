@@ -1,14 +1,47 @@
 import streamlit as st
 import pandas as pd
-import numpy as np
 
-st.title("간단한 Streamlit 예제")
-st.write("데이터와 그래프를 보여주는 예제입니다.")
+def main():
+    st.set_page_config(page_title="나의 소개 페이지", page_icon="👨‍🔬")
+    st.title("👨‍🔬 나의 소개 페이지")
 
-# 샘플 데이터
-data = pd.DataFrame(
-    np.random.randn(20, 3),
-    columns=['A', 'B', 'C']
-)
+    st.header("자기소개")
+    st.markdown("""
+    안녕하세요! 저는 **이진규**입니다.  
+    현재 대학에서 **산림과학부**에 재학 중이며, **화학**과 **프로그래밍**에 관심이 많습니다.  
+    실험에서 얻은 데이터를 코딩으로 분석하거나, 화학 반응을 시뮬레이션하는 모델을 만들어 보고 싶습니다.
+    """)
 
-st.line_chart(data)
+    st.header("🎓 학력 및 관심 분야")
+    st.markdown("""
+    - **소속:** 서울대학교 산림과학부  
+    - **관심분야:**  
+      - 🔬 분자 구조 및 화학 반응 모델링  
+      - 💻 데이터 시각화 및 시뮬레이션  
+      - 🌱 환경 화학, 지속 가능한 소재 개발
+    """)
+
+    st.header("🎧 취미와 여가활동")
+    st.markdown("""
+    - 🎵 음악 감상 - POP, 클래식, 랩, 밴드음악 등 다양한 음악을 즐깁니다.
+    - 🌍 여행 — 새로운 도시의 박물관과 자연을 탐험하는 것을 좋아합니다.  
+    - 📸 사진 촬영 — 실험 장면이나 여행지의 풍경을 담는 걸 즐깁니다.
+    """)
+
+    st.header("🚀 앞으로의 목표")
+    st.markdown("""
+    1. **화학 반응 모델링 프로그램 제작**  
+       → Python으로 화학 반응 과정을 시각화하고, 분자 구조를 예측하는 시뮬레이터를 만들어 보고 싶습니다.
+    2. **Streamlit 활용 프로젝트 포트폴리오 제작**  
+       → 데이터 분석 능력 강화하여 이를 시각적 웹 앱 형태로 표현하고자 합니다.
+    """)
+
+    st.header("💖 좋아하는 것")
+    st.write("저는 음악과 여행을 좋아하며, 새로운 지식을 배우는 걸 즐깁니다.")
+    st.markdown('가장 자주 방문하는 사이트는 [YouTube 공식 홈페이지](https://youtube.com) 입니다.')
+    st.write("---")
+    
+    st.caption("Streamlit으로 만든 자기소개 예제")
+
+if __name__ == "__main__":
+    main()
