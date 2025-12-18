@@ -48,48 +48,48 @@ rain_df = load_csv(RAIN_PATH)
 sub_df = load_csv(SUBWAY_PATH)
 
 # ===============================
-# 날짜 파싱 (🔥 핵심 수정)
+# 날짜 파싱 (🔥 핵심 함수)
 # ===============================
-def prep_rain(df):
-    df = parse_month(df)
+def parse_month(df):
+    col = df.iloc[:, 0].astype(str)
+    extracted = col.str.extract(r"(20\d{2})\D*([01]?\d)").dropna()
 
-    # 1️⃣ 강수량 컬럼 이름으로 먼저 탐색
-    rain_col = next(
-        (c for c in df.columns if "강수" in c or "rain" in c.lower() or "mm" in c.lower()),
-        None
+    if extracted.empty:
+        return pd.DataFrame(columns=["year_month"])
+
+    extracted[1] = extracted[1].astype(int)
+
+    df = df.loc[extracted.index].copy()
+    df["year_month"] = pd.PeriodIndex(
+        extracted[0].astype(str) + "-" + extracted[1].astype(str),
+        freq="M"
     )
-
-    # 2️⃣ 없으면 모든 컬럼 숫자 변환 시도
-    if rain_col is None:
-        for c in df.columns:
-            if c == "year_month":
-                continue
-            df[c] = pd.to_numeric(df[c], errors="coerce")
-
-        numeric_cols = df.select_dtypes(include="number").columns
-
-        if len(numeric_cols) == 0:
-            st.error("⚠ 강수량 숫자 컬럼을 찾을 수 없습니다. CSV 파일을 확인하세요.")
-            st.stop()
-
-        rain_col = numeric_cols[0]
-
-    df[rain_col] = pd.to_numeric(df[rain_col], errors="coerce")
-
-    return df[["year_month", rain_col]].rename(columns={rain_col: "precip_mm"})
-
+    return df
 
 # ===============================
 # 강수량 전처리
 # ===============================
 def prep_rain(df):
     df = parse_month(df)
+
+    # 컬럼 이름으로 강수량 탐색
     rain_col = next(
-        (c for c in df.columns if "강수" in c or "rain" in c or "mm" in c),
+        (c for c in df.columns if "강수" in c or "rain" in c.lower() or "mm" in c.lower()),
         None
     )
+
+    # 없으면 숫자 컬럼 강제 변환
     if rain_col is None:
-        rain_col = df.select_dtypes(include="number").columns[0]
+        for c in df.columns:
+            if c != "year_month":
+                df[c] = pd.to_numeric(df[c], errors="coerce")
+
+        numeric_cols = df.select_dtypes(include="number").columns
+        if len(numeric_cols) == 0:
+            st.error("⚠ 강수량 숫자 컬럼을 찾을 수 없습니다.")
+            st.stop()
+
+        rain_col = numeric_cols[0]
 
     df[rain_col] = pd.to_numeric(df[rain_col], errors="coerce")
     return df[["year_month", rain_col]].rename(columns={rain_col: "precip_mm"})
@@ -103,6 +103,9 @@ def prep_subway(df):
     df["passengers"] = df[num_cols].sum(axis=1)
     return df.groupby("year_month", as_index=False)[["passengers"]].sum()
 
+# ===============================
+# 전처리 실행
+# ===============================
 rain_m = prep_rain(rain_df)
 sub_m = prep_subway(sub_df)
 
@@ -115,6 +118,8 @@ merged = merged.dropna(subset=["precip_mm", "passengers"])
 if len(merged) < 2:
     st.error("⚠ 분석에 필요한 데이터가 충분하지 않습니다.")
     st.stop()
+
+st.dataframe(merged.head())
 
 # ===============================
 # 상관 & 회귀 분석
@@ -138,7 +143,7 @@ st.write(f"**결정계수 R²:** {r2:.4f}")
 
 st.markdown("""
 - 상관계수는 **매우 약한 양의 상관**
-- R² ≈ 0 → 강수량의 설명력은 극히 제한적
+- R² 값이 매우 낮아 강수량의 설명력은 제한적
 """)
 
 # ===============================
@@ -148,11 +153,7 @@ st.header("📈 시각화")
 
 fig, ax = plt.subplots(figsize=(7, 4))
 ax.scatter(merged["precip_mm"], merged["passengers"], alpha=0.6)
-ax.plot(
-    merged["precip_mm"],
-    model.predict(X_scaled),
-    linestyle="--"
-)
+ax.plot(merged["precip_mm"], model.predict(X_scaled), linestyle="--")
 
 ax.set_xlabel("Precipitation (mm)")
 ax.set_ylabel("Subway passengers")
@@ -180,4 +181,3 @@ if st.button("오늘 강수량으로 예측"):
     st.info(f"예상 지하철 이용량: {pred:,.0f} 명")
 
 st.caption("※ 실시간 강수량은 외부 크롤링 결과이며 0으로 표시될 수 있음")
-
