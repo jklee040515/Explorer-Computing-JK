@@ -17,8 +17,6 @@ st.set_page_config(
     layout="wide"
 )
 
-plt.rcParams['axes.unicode_minus'] = False
-
 st.title("🌧️ 서울 강수량 기반 지하철 이용량 분석 & 예측 웹앱")
 st.write("2015~2025년 데이터를 기반으로 강수량과 지하철 승하차 인원의 관계를 분석하고 예측합니다.")
 
@@ -159,8 +157,8 @@ fig, ax = plt.subplots(figsize=(7, 4))
 ax.scatter(X, y, label="실제 데이터")
 ax.plot(X, model.predict(X_scaled), label="회귀선")
 
-ax.set_xlabel("강수량 (mm)")
-ax.set_ylabel("승하차 인원")
+ax.set_xlabel("Precipitation (mm)")
+ax.set_ylabel("Subway passengers")
 ax.legend()
 
 st.pyplot(fig)
@@ -200,6 +198,7 @@ if st.button("오늘 강수량 가져와서 예측하기"):
     pred = model.predict(scaled_value)[0]
 
     st.info(f"📌 예상 지하철 승하차 인원: **{pred:,.0f} 명**")
+
 
 
 
