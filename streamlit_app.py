@@ -50,21 +50,34 @@ sub_df = load_csv(SUBWAY_PATH)
 # ===============================
 # 날짜 파싱 (🔥 핵심 수정)
 # ===============================
-def parse_month(df):
-    col = df.iloc[:, 0].astype(str)
-    extracted = col.str.extract(r"(20\d{2})\D*([01]?\d)").dropna()
+def prep_rain(df):
+    df = parse_month(df)
 
-    if extracted.empty:
-        return pd.DataFrame(columns=["year_month"])
-
-    extracted[1] = extracted[1].astype(int)
-
-    df = df.loc[extracted.index].copy()
-    df["year_month"] = pd.PeriodIndex(
-        extracted[0].astype(str) + "-" + extracted[1].astype(str),
-        freq="M"
+    # 1️⃣ 강수량 컬럼 이름으로 먼저 탐색
+    rain_col = next(
+        (c for c in df.columns if "강수" in c or "rain" in c.lower() or "mm" in c.lower()),
+        None
     )
-    return df
+
+    # 2️⃣ 없으면 모든 컬럼 숫자 변환 시도
+    if rain_col is None:
+        for c in df.columns:
+            if c == "year_month":
+                continue
+            df[c] = pd.to_numeric(df[c], errors="coerce")
+
+        numeric_cols = df.select_dtypes(include="number").columns
+
+        if len(numeric_cols) == 0:
+            st.error("⚠ 강수량 숫자 컬럼을 찾을 수 없습니다. CSV 파일을 확인하세요.")
+            st.stop()
+
+        rain_col = numeric_cols[0]
+
+    df[rain_col] = pd.to_numeric(df[rain_col], errors="coerce")
+
+    return df[["year_month", rain_col]].rename(columns={rain_col: "precip_mm"})
+
 
 # ===============================
 # 강수량 전처리
@@ -167,3 +180,4 @@ if st.button("오늘 강수량으로 예측"):
     st.info(f"예상 지하철 이용량: {pred:,.0f} 명")
 
 st.caption("※ 실시간 강수량은 외부 크롤링 결과이며 0으로 표시될 수 있음")
+
