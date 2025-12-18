@@ -30,10 +30,9 @@ st.header("1. 데이터 불러오기")
 
 # 🔹 Streamlit Cloud 대응 경로 설정
 BASE_DIR = Path(__file__).resolve().parent
-DATA_DIR = BASE_DIR / "data"
 
-RAIN_PATH = DATA_DIR / "2015~2025 월별 서울시 강수량.csv"
-SUBWAY_PATH = DATA_DIR / "2015~2025 월별 서울시 지하철 승하차 인원.csv"
+RAIN_PATH = BASE_DIR / "2015~2025 월별 서울시 강수량.csv"
+SUBWAY_PATH = BASE_DIR / "2015~2025 월별 서울시 지하철 승하차 인원.csv"
 
 
 def load_csv(path):
@@ -193,3 +192,4 @@ if st.button("오늘 강수량 가져와서 예측하기"):
     pred = model.predict(scaled_value)[0]
 
     st.info(f"📌 예상 지하철 승하차 인원: **{pred:,.0f} 명**")
+
