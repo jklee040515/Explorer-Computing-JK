@@ -154,8 +154,8 @@ st.write(f"📌 **결정계수 R²:** {r2:.4f}")
 st.header("5. 강수량 vs 지하철 이용량 시각화")
 
 fig, ax = plt.subplots(figsize=(7, 4))
-ax.scatter(X, y, label="실제 데이터")
-ax.plot(X, model.predict(X_scaled), label="회귀선")
+ax.scatter(X, y, label="data")
+ax.plot(X, model.predict(X_scaled), label="regression line")
 
 ax.set_xlabel("Precipitation (mm)")
 ax.set_ylabel("Subway passengers")
@@ -198,6 +198,7 @@ if st.button("오늘 강수량 가져와서 예측하기"):
     pred = model.predict(scaled_value)[0]
 
     st.info(f"📌 예상 지하철 승하차 인원: **{pred:,.0f} 명**")
+
 
 
 
