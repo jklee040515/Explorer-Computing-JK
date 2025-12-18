@@ -72,27 +72,35 @@ def parse_month(df):
 def prep_rain(df):
     df = parse_month(df)
 
-    # 컬럼 이름으로 강수량 탐색
-    rain_col = next(
-        (c for c in df.columns if "강수" in c or "rain" in c.lower() or "mm" in c.lower()),
-        None
-    )
+    # year_month 제외한 나머지 컬럼 후보
+    candidate_cols = [c for c in df.columns if c != "year_month"]
 
-    # 없으면 숫자 컬럼 강제 변환
-    if rain_col is None:
-        for c in df.columns:
-            if c != "year_month":
-                df[c] = pd.to_numeric(df[c], errors="coerce")
+    # 각 컬럼에서 숫자 추출 시도
+    best_col = None
+    max_valid = 0
 
-        numeric_cols = df.select_dtypes(include="number").columns
-        if len(numeric_cols) == 0:
-            st.error("⚠ 강수량 숫자 컬럼을 찾을 수 없습니다.")
-            st.stop()
+    for c in candidate_cols:
+        # 문자열에서 숫자만 추출
+        temp = (
+            df[c]
+            .astype(str)
+            .str.extract(r"([-+]?\d*\.?\d+)")
+            .astype(float)
+        )
 
-        rain_col = numeric_cols[0]
+        valid_count = temp.notna().sum()
 
-    df[rain_col] = pd.to_numeric(df[rain_col], errors="coerce")
-    return df[["year_month", rain_col]].rename(columns={rain_col: "precip_mm"})
+        # 가장 숫자가 많이 살아남은 컬럼을 강수량으로 선택
+        if valid_count > max_valid:
+            max_valid = valid_count
+            best_col = c
+            df[c] = temp[0]
+
+    if best_col is None or max_valid < 2:
+        st.error("⚠ 강수량 데이터를 식별할 수 없습니다. CSV 형식을 확인하세요.")
+        st.stop()
+
+    return df[["year_month", best_col]].rename(columns={best_col: "precip_mm"})
 
 # ===============================
 # 지하철 전처리
@@ -181,3 +189,4 @@ if st.button("오늘 강수량으로 예측"):
     st.info(f"예상 지하철 이용량: {pred:,.0f} 명")
 
 st.caption("※ 실시간 강수량은 외부 크롤링 결과이며 0으로 표시될 수 있음")
+
