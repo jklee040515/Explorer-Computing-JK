@@ -17,8 +17,7 @@ st.set_page_config(
     layout="wide"
 )
 
-# ⚠ Streamlit Cloud에는 Malgun Gothic 폰트 없음 → 제거
-plt.rcParams['axes.unicode_minus'] = False
+plt.rc('font', family='Malgun Gothic')
 
 st.title("🌧️ 서울 강수량 기반 지하철 이용량 분석 & 예측 웹앱")
 st.write("2015~2025년 데이터를 기반으로 강수량과 지하철 승하차 인원의 관계를 분석하고 예측합니다.")
@@ -201,5 +200,6 @@ if st.button("오늘 강수량 가져와서 예측하기"):
     pred = model.predict(scaled_value)[0]
 
     st.info(f"📌 예상 지하철 승하차 인원: **{pred:,.0f} 명**")
+
 
 
