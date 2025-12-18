@@ -1,133 +1,174 @@
 import streamlit as st
 import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
+from sklearn.linear_model import LinearRegression
+from sklearn.preprocessing import StandardScaler
+import requests
+from bs4 import BeautifulSoup
+import re
 
-def show_intro():
-    st.title("👨‍🔬 나의 소개 페이지")
-    st.header("자기소개")
-    st.markdown("""
-    안녕하세요! 저는 **이진규**입니다.  
-    현재 대학에서 **산림과학부**에 재학 중이며, **화학**과 **프로그래밍**에 관심이 많습니다.  
-    실험에서 얻은 데이터를 코딩으로 분석하거나, 화학 반응을 시뮬레이션하는 모델을 만들어 보고 싶습니다.
-    """)
+# Streamlit 설정
+st.set_page_config(page_title="서울 강수량 기반 지하철 이용량 분석", layout="wide")
+plt.rc('font', family='Malgun Gothic')  # 한글 깨짐 방지
+plt.rcParams['axes.unicode_minus'] = False
 
-    st.header("🎓 학력 및 관심 분야")
-    st.markdown("""
-    - **소속:** 서울대학교 산림과학부  
-    - **관심분야:**  
-      - 🔬 분자 구조 및 화학 반응 모델링  
-      - 💻 데이터 시각화 및 시뮬레이션  
-      - 🌱 환경 화학, 지속 가능한 소재 개발
-    """)
+st.title("🌧️ 서울 강수량 기반 지하철 이용량 분석 & 예측 웹앱")
+st.write("2015~2025년 데이터를 기반으로 강수량과 지하철 승하차 인원의 관계를 분석하고 예측합니다.")
 
-    st.header("🎧 취미와 여가활동")
-    st.markdown("""
-    - 🎵 음악 감상 - POP, 클래식, 랩, 밴드음악 등 다양한 음악을 즐깁니다.
-    - 🌍 여행 — 새로운 도시의 박물관과 자연을 탐험하는 것을 좋아합니다.  
-    - 📸 사진 촬영 — 실험 장면이나 여행지의 풍경을 담는 걸 즐깁니다.
-    """)
+# 1. 데이터 불러오기
+st.header("1. 데이터 불러오기")
 
-    st.header("🚀 앞으로의 목표")
-    st.markdown("""
-    1. **화학 반응 모델링 프로그램 제작**  
-       → Python으로 화학 반응 과정을 시각화하고, 분자 구조를 예측하는 시뮬레이터를 만들어 보고 싶습니다.
-    2. **Streamlit 활용 프로젝트 포트폴리오 제작**  
-       → 데이터 분석 능력 강화하여 이를 시각적 웹 앱 형태로 표현하고자 합니다.
-    """)
+RAIN_PATH = r"C:/Users/Owner/Desktop/컴퓨팅 탐색/기말 팀프로젝트(14,15주차)/2015~2025 월별 서울시 강수량.csv"
+SUBWAY_PATH = r"C:/Users/Owner/Desktop/컴퓨팅 탐색/기말 팀프로젝트(14,15주차)/2015~2025 월별 서울시 지하철 승하차 인원.csv"
 
-    st.header("💖 좋아하는 것")
-    st.write("저는 음악과 여행을 좋아하며, 새로운 지식을 배우는 걸 즐깁니다.")
-    st.markdown('가장 자주 방문하는 사이트는 [YouTube 공식 홈페이지](https://youtube.com) 입니다.')
-    st.write("---")
-    st.caption("Streamlit으로 만든 자기소개 예제")
+def load_csv(path):
+    """CSV 파일을 UTF-8 또는 CP949로 자동 인코딩하여 불러옴."""
+    try:
+        return pd.read_csv(path)
+    except:
+        return pd.read_csv(path, encoding="cp949")
 
-def show_timetable():
-    st.title("📚 나의 수업 시간표")
+rain_df = load_csv(RAIN_PATH)
+sub_df = load_csv(SUBWAY_PATH)
 
-    times = [
-        "0교시(08:00~08:50)",
-        "1교시(09:00~09:50)",
-        "2교시(10:00~10:50)",
-        "3교시(11:00~11:50)",
-        "4교시(12:00~12:50)",
-        "5교시(13:00~13:50)",
-        "6교시(14:00~14:50)",
-        "7교시(15:00~15:50)",
-        "8교시(16:00~16:50)",
+st.subheader("📄 강수량 데이터 (미리보기)")
+st.dataframe(rain_df.head())
+
+st.subheader("📄 지하철 승하차 데이터 (미리보기)")
+st.dataframe(sub_df.head())
+
+# 2. year_month 파싱 공통 함수
+def parse_month(df):
+    df = df.copy()
+    col = df.iloc[:, 0].astype(str)
+
+    # 다양한 날짜 형식에서 연도·월 추출
+    extracted = col.str.extract(r"(20[0-9]{2})[^0-9]*([0-9]{1,2})")
+    extracted = extracted.dropna()
+
+    if extracted.empty:
+        # 예: Jan-15 같은 형식 처리
+        tmp = pd.to_datetime(col, format="%b-%y", errors="coerce")
+        df["year_month"] = tmp.dt.to_period("M").dt.to_timestamp()
+        return df.dropna(subset=["year_month"])
+
+    extracted[1] = extracted[1].astype(int).apply(lambda x: f"{x:02d}")
+    df = df.loc[extracted.index]
+    df["year_month"] = pd.to_datetime(extracted[0] + "-" + extracted[1])
+
+    return df.dropna(subset=["year_month"])
+
+# 3. 강수량 데이터 전처리
+def prep_rain(df):
+    df = parse_month(df)
+    # 강수량 컬럼 자동 탐지
+    rain_col = None
+    for c in df.columns:
+        if "강수" in c or "rain" in c or "mm" in c:
+            rain_col = c
+    if rain_col is None:
+        # 가장 첫 번째 숫자 컬럼 선택
+        rain_col = df.select_dtypes(include="number").columns[0]
+
+    df[rain_col] = pd.to_numeric(df[rain_col], errors="coerce")
+    df = df[["year_month", rain_col]]
+    return df.rename(columns={rain_col: "precip_mm"})
+
+# 4. 지하철 데이터 전처리
+def prep_subway(df):
+    df = parse_month(df)
+    num_cols = df.select_dtypes(include="number").columns
+
+    if len(num_cols) == 0:
+        raise ValueError("⚠ 숫자 승하차 인원 컬럼을 찾을 수 없습니다.")
+
+    df["passengers"] = df[num_cols].sum(axis=1)
+    df = df.groupby("year_month", as_index=False).sum()
+    return df[["year_month", "passengers"]]
+
+rain_m = prep_rain(rain_df)
+sub_m = prep_subway(sub_df)
+
+st.header("2. 전처리된 데이터 미리보기")
+st.subheader("🌧 월별 강수량")
+st.dataframe(rain_m.head())
+
+st.subheader("🚇 월별 지하철 승하차 인원")
+st.dataframe(sub_m.head())
+
+# 5. 병합
+st.header("3. 데이터 병합")
+
+merged = pd.merge(rain_m, sub_m, on="year_month", how="inner")
+st.dataframe(merged.head())
+
+if merged.empty:
+    st.error("⚠ 병합된 데이터가 없습니다. 날짜 형식을 확인하세요.")
+    st.stop()
+
+# 6. 상관 분석 & 회귀 분석
+st.header("4. 상관 분석 및 회귀 분석")
+
+corr = merged["precip_mm"].corr(merged["passengers"])
+st.write(f"📌 **피어슨 상관계수:** {corr:.4f}")
+
+# 회귀 모델 학습
+X = merged[["precip_mm"]]
+y = merged["passengers"]
+
+scaler = StandardScaler()
+X_scaled = scaler.fit_transform(X)
+
+model = LinearRegression()
+model.fit(X_scaled, y)
+
+r2 = model.score(X_scaled, y)
+
+st.write(f"📌 **결정계수 R²:** {r2:.4f}")
+st.write("➡ R²가 0에 가까우므로 강수량은 지하철 이용량을 거의 설명하지 못함.")
+
+# 7. 시각화
+st.header("5. 강수량 vs 지하철 이용량 시각화")
+
+fig, ax = plt.subplots(figsize=(7, 4))
+ax.scatter(X, y, label="실제 데이터")
+line = model.predict(X_scaled)
+ax.plot(X, line, color="red", label="회귀선")
+
+ax.set_xlabel("강수량 (mm)")
+ax.set_ylabel("승하차 인원")
+ax.legend()
+
+st.pyplot(fig)
+
+# 8. 실시간 강수량 크롤링 + 예측
+st.header("6. 실시간 강수량 기반 지하철 이용량 예측")
+
+def get_today_rain():
+    """네이버 날씨에서 오늘 강수량 추출"""
+    url = "https://weather.naver.com/today/09140580"
+    html = requests.get(url).text
+    soup = BeautifulSoup(html, "html.parser")
+
+    selector_list = [
+        ".summary_list .rain",
+        ".figure_text",
+        ".weather_table .rainfall"
     ]
 
-    data = {
-        "시간": times,
-        "월": ["", "", "", "인체생물학<br>(500-L307)", "", "", "대중예술의 이해<br>(43-1-101)", "", ""],
-        "화": ["", "", "생명의료윤리<br>(6-103)", "처음 배우는 서양사<br>(14-208)", "", "", "", "", ""],
-        "수": ["", "", "", "인체생물학<br>(500-L307)", "", "", "대중예술의 이해<br>(43-1-101)", "", ""],
-        "목": ["", "", "생명의료윤리<br>(6-103)", "처음 배우는 서양사<br>(14-208)", "", "", 
-               "제지화학 및 실험<br>(200-1026)", "제지화학 및 실험<br>(200-1026)", "제지화학 및 실험<br>(200-1026)"],
-        "금": ["", "", "컴퓨팅 탐색: 실생활에서 활용하기<br>(26-104)", 
-               "컴퓨팅 탐색: 실생활에서 활용하기<br>(26-104)", 
-               "컴퓨팅 탐색: 실생활에서 활용하기<br>(26-104)", "", "", "", ""]
-    }
+    for selector in selector_list:
+        tag = soup.select_one(selector)
+        if tag and re.findall(r"[0-9.]+", tag.text):
+            return float(re.findall(r"[0-9.]+", tag.text)[0])
 
-    df = pd.DataFrame(data)
+    return 0.0  # 기본값
 
-    colors = {
-        "인체생물학": "#f28b82",
-        "생명의료윤리": "#81c995",
-        "처음 배우는 서양사": "#fbbc04",
-        "대중예술의 이해": "#ea4335",
-        "제지화학 및 실험": "#46bdc6",
-        "컴퓨팅 탐색": "#fdd663"
-    }
+if st.button("오늘 강수량 가져와서 예측하기"):
+    today_rain = get_today_rain()
+    st.success(f"오늘 강수량: **{today_rain} mm**")
 
-    def colorize_cell(cell):
-        for key, color in colors.items():
-            if key in cell:
-                return f'<td style="background-color:{color}; text-align:center; vertical-align:middle; color:black; font-weight:bold;">{cell}</td>'
-        return f'<td style="text-align:center;">{cell}</td>'
+    scaled_value = scaler.transform([[today_rain]])
+    pred = model.predict(scaled_value)[0]
 
-    table_html = "<table style='border-collapse: collapse; width:100%; border:1px solid #ccc;'>"
-    table_html += "<tr>" + "".join([f"<th style='border:1px solid #ccc; background:#e8eaed;'>{col}</th>" for col in df.columns]) + "</tr>"
-
-    for _, row in df.iterrows():
-        table_html += "<tr>" + "".join([colorize_cell(str(cell)) for cell in row]) + "</tr>"
-
-    table_html += "</table>"
-
-    st.markdown(table_html, unsafe_allow_html=True)
-
-    st.subheader("이번 학기 요약 (st.metric)")
-    col1, col2 = st.columns(2)
-    col1.metric(label="수강 과목 수", value="6")
-    col2.metric(label="총 학점", value="18", delta="+3")
-
-    st.write("---")
-    st.caption("Streamlit으로 만든 시간표 시각화 예시")
-
-def main():
-    st.set_page_config(page_title="나의 포트폴리오", page_icon="💡")
-
-    if "page" not in st.session_state:
-        st.session_state.page = "main"
-
-    # 페이지 전환용 콜백
-    def go_intro():
-        st.session_state.page = "intro"
-    def go_timetable():
-        st.session_state.page = "timetable"
-    def go_main():
-        st.session_state.page = "main"
-
-    if st.session_state.page == "main":
-        st.title("💡 나의 Streamlit 포트폴리오")
-        col1, col2 = st.columns(2)
-        col1.button("👨‍🔬 자기소개 페이지 보기", on_click=go_intro)
-        col2.button("📚 시간표 페이지 보기", on_click=go_timetable)
-
-    elif st.session_state.page == "intro":
-        show_intro()
-        st.button("⬅️ 뒤로가기", on_click=go_main)
-
-    elif st.session_state.page == "timetable":
-        show_timetable()
-        st.button("⬅️ 뒤로가기", on_click=go_main)
-
-main()
+    st.info(f"📌 예상 지하철 승하차 인원: **{pred:,.0f} 명** (단순 선형 회귀모델)")
