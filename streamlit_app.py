@@ -62,7 +62,7 @@ st.dataframe(sub_df.head())
 # ===============================
 # 프로젝트 진행 과정 (보고서 내용)
 # ===============================
-with st.expander("📂 프로젝트 진행 과정 (데이터 파이프라인)"):
+with st.expander("📂 프로젝트 진행 과정"):
     st.markdown("""
 ### ① 데이터 수집
 - 월별 서울 강수량 데이터
@@ -136,7 +136,12 @@ sub_m = prep_subway(sub_df)
 # ===============================
 st.header("2. 데이터 병합 및 전처리 결과")
 
-merged = pd.merge(rain_m, sub_m, on="year_month", how="inner")
+merged = merged.dropna(subset=["precip_mm", "passengers"])
+
+# 데이터 수 체크
+if len(merged) < 2:
+    st.error("⚠ 분석에 필요한 데이터가 충분하지 않습니다.")
+    st.stop()
 st.dataframe(merged.head())
 
 # ===============================
@@ -221,5 +226,6 @@ if st.button("오늘 강수량으로 예측하기"):
     st.info(f"📌 예상 지하철 승하차 인원: **{pred:,.0f} 명**")
 
 st.caption("※ 실시간 강수량은 외부 웹 크롤링 결과로, 네트워크 환경에 따라 0으로 표시될 수 있습니다.")
+
 
 
