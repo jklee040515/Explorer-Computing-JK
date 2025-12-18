@@ -173,14 +173,23 @@ st.header("6. 실시간 강수량 기반 지하철 이용량 예측")
 
 def get_today_rain():
     url = "https://weather.naver.com/today/09140580"
-    html = requests.get(url).text
+    html = requests.get(url, timeout=5).text
     soup = BeautifulSoup(html, "html.parser")
 
-    for tag in soup.find_all(text=re.compile(r"[0-9.]+")):
-        nums = re.findall(r"[0-9.]+", tag)
-        if nums:
-            return float(nums[0])
+    texts = soup.stripped_strings
 
+    for text in texts:
+        matches = re.findall(r"\d+\.?\d*", text)
+        for m in matches:
+            try:
+                value = float(m)
+                # 강수량은 비정상적으로 큰 값이 나오지 않음
+                if 0 <= value <= 500:
+                    return value
+            except ValueError:
+                continue
+
+    # 파싱 실패 시 안전한 기본값
     return 0.0
 
 
@@ -192,4 +201,5 @@ if st.button("오늘 강수량 가져와서 예측하기"):
     pred = model.predict(scaled_value)[0]
 
     st.info(f"📌 예상 지하철 승하차 인원: **{pred:,.0f} 명**")
+
 
