@@ -197,7 +197,8 @@ if st.button("오늘 강수량 가져와서 예측하기"):
     scaled_value = scaler.transform([[today_rain]])
     pred = model.predict(scaled_value)[0]
 
-    st.info(f"📌 예상 지하철 승하차 인원: **{pred:,.0f} 명**") --> 웹앱에서 보고서의 내용이 들어가도록 코드 수정 
+    st.info(f"📌 예상 지하철 승하차 인원: **{pred:,.0f} 명**") 
+
 
 
 
